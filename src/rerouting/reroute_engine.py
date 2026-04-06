@@ -1,34 +1,85 @@
-def suggest_reroute(a, b):
+CLEARANCE_RULES = {
 
-    # simple strategy: raise element A above B
+    ("PIPE", "PIPE"): 0.1,
+    ("PIPE", "DUCT"): 0.1,
+    ("DUCT", "DUCT"): 0.2,
+    ("PIPE", "CABLE_TRAY"): 0.15,
+    ("CABLE_TRAY", "CABLE_TRAY"): 0.3
 
-    clearance = 0.3  # 30cm engineering clearance
+}
 
-    new_z = b.max_z + clearance
 
-    suggestion = {
-        "action": "RAISE_PIPE",
-        "element": a.element_id,
-        "old_z": a.min_z,
-        "new_z": new_z
+def get_clearance(a, b):
+
+    pair = (a.system, b.system)
+
+    if pair in CLEARANCE_RULES:
+        return CLEARANCE_RULES[pair]
+
+    pair = (b.system, a.system)
+
+    if pair in CLEARANCE_RULES:
+        return CLEARANCE_RULES[pair]
+
+    return 0.1
+
+
+def choose_element_to_move(a, b):
+
+    priority = {
+        "DUCT": 3,
+        "CABLE_TRAY": 2,
+        "PIPE": 1
     }
 
-    return suggestion
+    if priority.get(a.system,0) < priority.get(b.system,0):
+        return a, b
+    else:
+        return b, a
 
 
-def generate_rerouting(elements, clashes):
+def reroute_clash(a, b):
 
-    id_map = {e.element_id: e for e in elements}
+    movable, obstacle = choose_element_to_move(a, b)
+
+    clearance = get_clearance(a, b)
 
     suggestions = []
 
-    for clash in clashes:
+    # vertical reroute
+    new_z = obstacle.max_z + clearance
 
-        a = id_map[clash["element1"]]
-        b = id_map[clash["element2"]]
+    suggestions.append({
 
-        suggestion = suggest_reroute(a, b)
+        "action": "RAISE",
+        "element": movable.element_id,
+        "old_z": movable.max_z,
+        "new_z": new_z
 
-        suggestions.append(suggestion)
+    })
+
+    # horizontal reroute X
+    new_x = obstacle.max_x + clearance
+
+    suggestions.append({
+
+        "action": "SHIFT_X",
+        "element": movable.element_id,
+        "old_x": movable.max_x,
+        "new_x": new_x
+
+    })
+
+    # horizontal reroute Y
+    new_y = obstacle.max_y + clearance
+
+    suggestions.append({
+
+        "action": "SHIFT_Y",
+        "element": movable.element_id,
+        "old_y": movable.max_y,
+        "new_y": new_y
+
+    })
 
     return suggestions
